@@ -17,13 +17,26 @@ Adafruit_SSD1306 display(OLED_RESET);
 #define DELTAY 2
 const char* ssid = "SKY01B9D";
 const char* password = "CFRDQFSDPP";
+const int MAX_TUBER_TIMER = 60000;
+const int SLEEP_TIME = 5;
 
+int maxLength, minX;
 int timezone = 0;
 int dst = 0;
-int tubeStatusTimer = 300;
-String tubeStatus = "";
+int tubeStatusTimer = MAX_TUBER_TIMER;
+
+struct TubeStatus {
+  String name;
+  String status;
+  int position;
+} tubeStatuses[2];
 
 void setup() {
+  tubeStatuses[0].name = "District: ";
+  tubeStatuses[1].name = "Piccadilly: ";
+  tubeStatuses[0].position = 10;
+  tubeStatuses[1].position = 10;
+  
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
@@ -31,7 +44,9 @@ void setup() {
   display.clearDisplay();
 
   display.setTextColor(WHITE);
-  
+  display.setTextWrap(false);
+  maxLength = display.width() / 6;
+    
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("\nConnecting to WiFi");
@@ -54,32 +69,40 @@ void setup() {
 void loop() {
   String time = getTime();
 
-  if (tubeStatusTimer == 300) {
+  if (tubeStatusTimer == MAX_TUBER_TIMER) {
+    Serial.println("Getting tube status");
     tubeStatusTimer = 0;
 
-    String districtStatus = getLineDelay("district");
-    String piccadillyStatus = getLineDelay("piccadilly");
-    
-    tubeStatus = "District: \n\t" + districtStatus + ",\n\nPiccadilly: \n\t" + piccadillyStatus;    
-    Serial.println(tubeStatus);
+    tubeStatuses[0].status = "\t" + getLineDelay("district");
+    tubeStatuses[1].status = "\t" + getLineDelay("piccadilly");
   }
+
+  handlePosition(&tubeStatuses[0]);
+  handlePosition(&tubeStatuses[1]);
   
-  displayTimeAndTube(time, tubeStatus);
-  delay(1000);
+  displayTimeAndTube(time);
+  delay(SLEEP_TIME);
 
   tubeStatusTimer++; 
 }
 
-void displayTimeAndTube(String time, String tube) {
+void displayTimeAndTube(String time) {
   display.clearDisplay();
 
   display.setTextSize(2);
-  display.setCursor(15,0);
+  display.setCursor(15, 0);
   display.println(time);
 
   display.setTextSize(1);
   display.setCursor(0,25);
-  display.println(tube);
+  display.println(tubeStatuses[0].name);
+  display.setCursor(tubeStatuses[0].position, 33);
+  display.println(tubeStatuses[0].status);
+
+  display.setCursor(0,47);
+  display.println(tubeStatuses[1].name);
+  display.setCursor(tubeStatuses[1].position, 56);
+  display.println(tubeStatuses[1].status);
   
   display.display();
 }
@@ -91,7 +114,6 @@ String getLineDelay(String line) {
     HTTPClient http;  //Declare an object of class HTTPClient
     String thumbprint = "75 8A 5F 6E 00 87 72 89 9E 17 2E 62 66 59 07 9C 3E BF E8 52";
     String url = "https://api.tfl.gov.uk/Line/" + line + "/Status?app_id=34252ee6&app_key=aeedebd1d41961c42db6c7b4aee7f6ac";
-    Serial.println(url);
     http.begin(url, thumbprint);  
     int httpCode = http.GET();                                                                
 
@@ -115,11 +137,18 @@ String readLineStatus(String payload) {
   
   JsonArray& root = jsonBuffer.parseArray(payload);
   JsonObject& root_0 = root[0];
-  JsonObject& root_0_lineStatuses0 = root_0["lineStatuses"][0];
-  const char* root_0_lineStatuses0_statusSeverityDescription = root_0_lineStatuses0["statusSeverityDescription"]; // "Good Service"
+  int size = root_0["lineStatuses"].size();
+  String result = "";
+  for (int i = 0; i < size; i++) {
+    String status = root_0["lineStatuses"][i]["statusSeverityDescription"];
+    if (i < size - 1) {
+      result += status + " + ";
+    } else {
+      result += status;
+    }
+  }
   
-
-  return root_0_lineStatuses0_statusSeverityDescription;
+  return result;
 }
 
 String getTime() {
@@ -128,5 +157,22 @@ String getTime() {
   char outstr[200];
   strftime(outstr, sizeof(outstr), "%H:%M:%S", localtime_r (&now, &foo));
   return outstr;
+}
+
+boolean isTooLong(TubeStatus* status) {
+  return status->status.length() > maxLength;
+}
+
+void handlePosition(TubeStatus* status) {
+  if (isTooLong(status)) {
+    int pixelLength = -(status->status.length() * 6);
+    if (status->position < pixelLength) {
+      status->position = display.width();
+    } else {
+      status->position--;
+    }
+  } else {
+    status->position = 0;
+  }
 }
 
