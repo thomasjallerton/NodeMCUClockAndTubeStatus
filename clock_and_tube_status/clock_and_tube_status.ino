@@ -15,8 +15,8 @@ Adafruit_SSD1306 display(OLED_RESET);
 #define XPOS 0
 #define YPOS 1
 #define DELTAY 2
-const char* ssid = "Morpheus";
-const char* password = "BlaxterGameSharkGerald";
+const char* ssid = "SKY01B9D";
+const char* password = "CFRDQFSDPP";
 
 int timezone = 0;
 int dst = 0;
@@ -57,7 +57,7 @@ void loop() {
   if (tubeStatusTimer == 300) {
     tubeStatusTimer = 0;
 
-    String districtStatus = getLineDelay("central");
+    String districtStatus = getLineDelay("district");
     String piccadillyStatus = getLineDelay("piccadilly");
     
     tubeStatus = "District: \n\t" + districtStatus + ",\n\nPiccadilly: \n\t" + piccadillyStatus;    
@@ -85,20 +85,19 @@ void displayTimeAndTube(String time, String tube) {
 }
 
 String getLineDelay(String line) {
-  Serial.println("Starting to get delay for line " + line);
-
   String status = "Error Connecting";
 
   if (WiFi.status() == WL_CONNECTED) { //Check WiFi connection status
     HTTPClient http;  //Declare an object of class HTTPClient
-    String thumbprint = "‎da 45 cc 48 99 97 50 a9 90 4c e3 f5 2c 78 2f 4e f8 a4 10 9a";
-    http.begin("https://api.tfl.gov.uk/Line/" + line + "/Status?app_id=34252ee6&app_key=aeedebd1d41961c42db6c7b4aee7f6ac", thumbprint);  
+    String thumbprint = "75 8A 5F 6E 00 87 72 89 9E 17 2E 62 66 59 07 9C 3E BF E8 52";
+    String url = "https://api.tfl.gov.uk/Line/" + line + "/Status?app_id=34252ee6&app_key=aeedebd1d41961c42db6c7b4aee7f6ac";
+    Serial.println(url);
+    http.begin(url, thumbprint);  
     int httpCode = http.GET();                                                                
 
     if (httpCode = HTTP_CODE_OK) { //Check the returning code
 
-      Serial.println(http.getString());
-      //status = readLineStatus(http.getString());   //Get the request response payload
+      status = readLineStatus(http.getString());   //Get the request response payload
 
     } else {
       Serial.println("Error connecting to tfl, status code: " + httpCode);
